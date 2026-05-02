@@ -122,7 +122,8 @@ TOOLS: list[Tool] = [
         name="council_create_member",
         description=(
             "Create a new council member with a custom persona. "
-            "The member is immediately available for future sessions."
+            "The member is immediately available for future sessions. "
+            "Supports multiple AI providers: anthropic, openai, openrouter, ollama."
         ),
         inputSchema={
             "type": "object",
@@ -135,8 +136,27 @@ TOOLS: list[Tool] = [
                 },
                 "model": {
                     "type": "string",
-                    "description": "LLM model to use (default: claude-opus-4-5).",
+                    "description": "LLM model identifier (e.g. claude-opus-4-5, gpt-4o, mistral:7b).",
                     "default": "claude-opus-4-5",
+                },
+                "provider": {
+                    "type": "string",
+                    "description": (
+                        "AI provider: 'anthropic' (default), 'openai', 'openrouter', or 'ollama'. "
+                        "anthropic uses ANTHROPIC_API_KEY; openai uses OPENAI_API_KEY; "
+                        "openrouter uses OPENROUTER_API_KEY; ollama uses OLLAMA_BASE_URL "
+                        "(defaults to http://localhost:11434/v1, no key required)."
+                    ),
+                    "default": "anthropic",
+                    "enum": ["anthropic", "openai", "openrouter", "ollama"],
+                },
+                "api_key": {
+                    "type": "string",
+                    "description": (
+                        "Optional explicit API key for this member. "
+                        "Overrides the provider's environment variable. "
+                        "Stored in the persona file – prefer env vars when possible."
+                    ),
                 },
                 "traits": {
                     "type": "array",
@@ -287,11 +307,14 @@ async def dispatch_tool(
                 title=arguments["title"],
                 description=arguments["description"],
                 model=arguments.get("model", "claude-opus-4-5"),
+                provider=arguments.get("provider", "anthropic"),
+                api_key=arguments.get("api_key", ""),
                 traits=arguments.get("traits", []),
                 system_prompt=arguments.get("system_prompt", ""),
             )
             return _ok(
                 f"Council member '{persona.name}' ({persona.slug}) created successfully. "
+                f"Provider: {persona.provider}, Model: {persona.model}. "
                 f"Persona saved to .council/personas/{persona.slug}.md"
             )
         except Exception as exc:
@@ -306,6 +329,7 @@ async def dispatch_tool(
             for m in members:
                 lines.append(f"### {m['name']} (`{m['slug']}`)")
                 lines.append(f"**Title:** {m['title']}  ")
+                lines.append(f"**Provider:** {m.get('provider', 'anthropic')}  ")
                 lines.append(f"**Model:** {m['model']}  ")
                 lines.append(f"**Description:** {m['description'][:200]}...")
                 if m["traits"]:

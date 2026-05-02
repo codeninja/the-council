@@ -2,6 +2,7 @@
 
 **Title:** Security Researcher & Devil's Advocate  
 **Model:** claude-opus-4-5  
+**Provider:** anthropic  
 
 ## Description
 

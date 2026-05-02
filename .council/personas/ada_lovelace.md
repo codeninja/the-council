@@ -2,6 +2,7 @@
 
 **Title:** Visionary Mathematician & Algorithm Architect  
 **Model:** claude-opus-4-5  
+**Provider:** anthropic  
 
 ## Description
 

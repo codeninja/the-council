@@ -41,6 +41,7 @@ class Council:
     ) -> None:
         self.council_dir = Path(council_dir or ".council").resolve()
         self.project_root = str(Path(project_root or ".").resolve())
+        # Kept for backward compatibility; per-persona provider env vars take precedence.
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
 
         self._persona_manager = PersonaManager(self.council_dir / "personas")
@@ -48,9 +49,14 @@ class Council:
         self._queue = EventQueue()
 
         # Load existing personas → members
+        # Each CouncilMember selects its own backend via persona.provider + persona.api_key.
+        # The legacy global api_key is passed as a fallback for Anthropic personas that
+        # carry no key of their own and have no ANTHROPIC_API_KEY env var set.
         self._members: dict[str, CouncilMember] = {}
         for persona in self._persona_manager.load_all():
-            self._members[persona.slug] = CouncilMember(persona, self.project_root, self.api_key)
+            self._members[persona.slug] = CouncilMember(
+                persona, self.project_root, self.api_key
+            )
 
     # ------------------------------------------------------------------
     # Member management
@@ -62,6 +68,8 @@ class Council:
         title: str,
         description: str,
         model: str = "claude-opus-4-5",
+        provider: str = "anthropic",
+        api_key: str = "",
         traits: list[str] | None = None,
         system_prompt: str = "",
     ) -> PersonaConfig:
@@ -70,11 +78,13 @@ class Council:
             title=title,
             description=description,
             model=model,
+            provider=provider,
+            api_key=api_key,
             traits=traits or [],
             system_prompt=system_prompt,
         )
         self._persona_manager.save(persona)
-        self._members[persona.slug] = CouncilMember(persona, self.project_root, self.api_key)
+        self._members[persona.slug] = CouncilMember(persona, self.project_root)
         return persona
 
     def remove_member(self, name_or_slug: str) -> bool:

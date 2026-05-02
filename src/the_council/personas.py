@@ -19,6 +19,12 @@ class PersonaConfig:
     title: str
     description: str
     model: str = "claude-opus-4-5"
+    #: AI provider: ``"anthropic"`` | ``"openai"`` | ``"openrouter"`` | ``"ollama"``
+    provider: str = "anthropic"
+    #: Optional per-persona API key override.  When empty the provider's env var is used.
+    #: Stored in the persona file – only set this when you intentionally want the key
+    #: embedded in the file rather than read from the environment.
+    api_key: str = ""
     traits: list[str] = field(default_factory=list)
     system_prompt: str = ""
     slug: str = ""
@@ -32,9 +38,12 @@ class PersonaConfig:
         lines = [
             f"# {self.name}\n",
             f"**Title:** {self.title}  ",
-            f"**Model:** {self.model}  \n",
-            f"## Description\n\n{self.description}\n",
+            f"**Model:** {self.model}  ",
+            f"**Provider:** {self.provider}  \n",
         ]
+        if self.api_key:
+            lines.append(f"**API Key:** {self.api_key}  \n")
+        lines.append(f"## Description\n\n{self.description}\n")
         if self.traits:
             lines.append("## Traits\n")
             for t in self.traits:
@@ -50,9 +59,11 @@ class PersonaConfig:
             "slug": self.slug,
             "title": self.title,
             "model": self.model,
+            "provider": self.provider,
             "description": self.description,
             "traits": self.traits,
             "system_prompt": self.system_prompt,
+            # api_key intentionally omitted to avoid leaking secrets in list output
         }
 
     @classmethod
@@ -61,6 +72,8 @@ class PersonaConfig:
         name = _extract_heading(text, 1) or "Unknown"
         title = _extract_inline_field(text, "Title") or ""
         model = _extract_inline_field(text, "Model") or "claude-opus-4-5"
+        provider = _extract_inline_field(text, "Provider") or "anthropic"
+        api_key = _extract_inline_field(text, "API Key") or ""
         description = _extract_section(text, "Description") or ""
         traits = _extract_list(text, "Traits")
         system_prompt = _extract_section(text, "System Prompt") or ""
@@ -68,6 +81,8 @@ class PersonaConfig:
             name=name,
             title=title,
             model=model,
+            provider=provider,
+            api_key=api_key,
             description=description,
             traits=traits,
             system_prompt=system_prompt,

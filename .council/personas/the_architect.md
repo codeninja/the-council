@@ -2,6 +2,7 @@
 
 **Title:** Senior Systems Designer & Reliability Engineer  
 **Model:** claude-opus-4-5  
+**Provider:** anthropic  
 
 ## Description
 

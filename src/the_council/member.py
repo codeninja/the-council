@@ -3,52 +3,15 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-import anthropic
-
+from the_council.backends import LLMBackend, make_backend
 from the_council.message_queue import EventQueue
 from the_council.personas import PersonaConfig
 
-if TYPE_CHECKING:
-    pass
-
 # ---------------------------------------------------------------------------
-# Tool definitions available to council members
+# File-exploration tool implementation
 # ---------------------------------------------------------------------------
-
-_FILE_READ_TOOL: dict[str, Any] = {
-    "name": "read_file",
-    "description": "Read the contents of a file in the project (read-only).",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Relative path to the file from the project root.",
-            }
-        },
-        "required": ["path"],
-    },
-}
-
-_LIST_FILES_TOOL: dict[str, Any] = {
-    "name": "list_files",
-    "description": "List files and directories at the given path.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Relative path to a directory.",
-                "default": ".",
-            }
-        },
-        "required": [],
-    },
-}
-
-_TOOLS = [_FILE_READ_TOOL, _LIST_FILES_TOOL]
 
 
 def _handle_tool_call(name: str, tool_input: dict[str, Any], project_root: str) -> str:
@@ -93,10 +56,14 @@ def _handle_tool_call(name: str, tool_input: dict[str, Any], project_root: str) 
 
 class CouncilMember:
     """
-    A council member backed by an LLM (currently Anthropic Claude).
+    A council member backed by an LLM via a pluggable :class:`~the_council.backends.LLMBackend`.
+
+    The backend is selected automatically from the persona's ``provider`` field,
+    enabling Anthropic, OpenAI, OpenRouter, Ollama, and any other OpenAI-compatible
+    endpoint to be used on a per-member basis.
 
     Each member has a persona that shapes how they respond.  They communicate
-    with other members via the shared :class:`EventQueue`.
+    with other members via the shared :class:`~the_council.message_queue.EventQueue`.
     """
 
     def __init__(
@@ -104,10 +71,40 @@ class CouncilMember:
         persona: PersonaConfig,
         project_root: str = ".",
         api_key: str | None = None,
+        *,
+        backend: LLMBackend | None = None,
     ) -> None:
+        """
+        Parameters
+        ----------
+        persona:
+            The persona configuration for this member.
+        project_root:
+            Absolute path to the project root used for file-exploration tools.
+        api_key:
+            Optional global API key override (used only when the persona does not
+            carry its own ``api_key`` and no provider env var is set).  Kept for
+            backward compatibility; prefer setting ``persona.api_key`` or the
+            appropriate environment variable instead.
+        backend:
+            Inject a pre-built :class:`LLMBackend` directly (useful for testing).
+            When provided, *api_key*, ``persona.provider``, and ``persona.model``
+            are ignored for backend construction.
+        """
         self.persona = persona
         self.project_root = os.path.abspath(project_root)
-        self._client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""))
+
+        if backend is not None:
+            self._backend: LLMBackend = backend
+        else:
+            # Per-persona key wins; fall back to the explicit api_key argument
+            # (legacy) only when the persona carries no key of its own.
+            resolved_key = persona.api_key or api_key or None
+            self._backend = make_backend(
+                provider=persona.provider,
+                model=persona.model,
+                api_key=resolved_key,
+            )
 
     @property
     def name(self) -> str:
@@ -119,50 +116,14 @@ class CouncilMember:
 
     def _call_llm(self, system: str, messages: list[dict[str, Any]]) -> str:
         """
-        Call the LLM with an agentic loop that handles tool use.
+        Call the configured backend with an agentic tool-use loop.
         Returns the final text response.
         """
-        model = self.persona.model
-        all_messages = list(messages)
 
-        while True:
-            response = self._client.messages.create(
-                model=model,
-                max_tokens=2048,
-                system=system,
-                tools=_TOOLS,  # type: ignore[arg-type]
-                messages=all_messages,  # type: ignore[arg-type]
-            )
+        def _tool_handler(name: str, tool_input: dict[str, Any]) -> str:
+            return _handle_tool_call(name, tool_input, self.project_root)
 
-            # Collect text from the response
-            text_parts = [b.text for b in response.content if hasattr(b, "text")]
-
-            if response.stop_reason == "end_turn":
-                return "\n".join(text_parts).strip()
-
-            if response.stop_reason == "tool_use":
-                # Process all tool calls in this turn
-                tool_results = []
-                for block in response.content:
-                    if block.type == "tool_use":
-                        result = _handle_tool_call(
-                            block.name, block.input, self.project_root  # type: ignore[arg-type]
-                        )
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": result,
-                            }
-                        )
-
-                # Append assistant turn + tool results and continue loop
-                all_messages.append({"role": "assistant", "content": response.content})
-                all_messages.append({"role": "user", "content": tool_results})
-                continue
-
-            # Unexpected stop reason – return what we have
-            return "\n".join(text_parts).strip()
+        return self._backend.complete(system, messages, _tool_handler)
 
     # ------------------------------------------------------------------
     # Council-facing methods
