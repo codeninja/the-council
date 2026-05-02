@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# The Council sessions (generated at runtime)
+.council/sessions/
