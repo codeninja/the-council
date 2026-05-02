@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import contextlib
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -144,8 +146,10 @@ class PersonaManager:
     def load_all(self) -> list[PersonaConfig]:
         personas = []
         for path in sorted(self.personas_dir.glob("*.md")):
-            with contextlib.suppress(Exception):
+            try:
                 personas.append(PersonaConfig.from_markdown(path.read_text(encoding="utf-8")))
+            except Exception:
+                _log.warning("Failed to load persona from %s", path, exc_info=True)
         return personas
 
     def delete(self, slug: str) -> bool:

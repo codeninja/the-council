@@ -182,7 +182,7 @@ class TestDispatchPresent:
     async def test_present_with_members(self, tmp_path: Path) -> None:
         council = _make_council(tmp_path)
         mock = _mock_member("TestElder", verdict="approved")
-        council._members = {"testeleder": mock}
+        council._members = {"testelder": mock}
         with patch("the_council.council._summarise_position", return_value="Looks good."):
             result = await dispatch_tool(
                 "council_present",

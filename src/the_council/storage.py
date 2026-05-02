@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from the_council.session import CouncilSession
+
+_log = logging.getLogger(__name__)
 
 
 class Storage:
@@ -55,7 +58,8 @@ class Storage:
         try:
             data = json.loads(self._index_path.read_text(encoding="utf-8"))
             return list(reversed(data))
-        except Exception:  # noqa: BLE001
+        except Exception:
+            _log.warning("Failed to read session index at %s", self._index_path, exc_info=True)
             return []
 
     # ------------------------------------------------------------------
@@ -84,7 +88,8 @@ class Storage:
         if self._index_path.exists():
             try:
                 sessions = json.loads(self._index_path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001
+            except Exception:
+                _log.warning("Failed to read session index; starting fresh.", exc_info=True)
                 sessions = []
 
         # Remove existing entry for the same id, then append updated

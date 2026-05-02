@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
+import logging
 import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -80,8 +82,12 @@ class EventQueue:
         # Deliver to subscribers outside the lock (non-blocking)
         callbacks = list(self._subscribers.get(topic, []))
         for cb in callbacks:
-            with contextlib.suppress(Exception):
+            try:
                 await cb(message)
+            except Exception:
+                _log.warning(
+                    "Subscriber %r raised an exception on topic %r", cb, topic, exc_info=True
+                )
 
         return message
 
