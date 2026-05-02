@@ -246,7 +246,10 @@ class OpenAICompatibleBackend(LLMBackend):
 
         self._model = model
         self._client = _openai.OpenAI(
-            api_key=api_key or "no-key",  # Ollama/local servers accept any non-empty string
+            # Local/Ollama servers require a non-empty api_key string but don't
+            # validate its value.  Real API-key-requiring providers will have already
+            # received a proper key via the resolved_key path in make_backend().
+            api_key=api_key or "local-no-key-required",
             base_url=base_url,
         )
 
@@ -311,8 +314,6 @@ class OpenAICompatibleBackend(LLMBackend):
                         "content": result,
                     }
                 )
-
-            # Continue loop with updated messages
 
 
 # ---------------------------------------------------------------------------

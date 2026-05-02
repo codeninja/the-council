@@ -311,7 +311,9 @@ class TestPersonaConfigProviderFields:
         assert "API Key" not in p_no_key.to_markdown()
 
         p_with_key = PersonaConfig(name="X", title="T", description="D", api_key="sk-test")
-        assert "**API Key:** sk-test" in p_with_key.to_markdown()
+        md = p_with_key.to_markdown()
+        assert "**API Key:** sk-test" in md
+        assert "WARNING" in md  # security warning comment should be present
 
     def test_provider_round_trip(self) -> None:
         p = PersonaConfig(

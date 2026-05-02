@@ -22,8 +22,12 @@ class PersonaConfig:
     #: AI provider: ``"anthropic"`` | ``"openai"`` | ``"openrouter"`` | ``"ollama"``
     provider: str = "anthropic"
     #: Optional per-persona API key override.  When empty the provider's env var is used.
-    #: Stored in the persona file – only set this when you intentionally want the key
-    #: embedded in the file rather than read from the environment.
+    #:
+    #: **Security warning**: When set, this value is written in plaintext to the persona
+    #: `.md` file.  Only embed a key here when the persona file is stored in a private
+    #: location that will *never* be committed to version control.
+    #: For most use cases prefer setting the provider's environment variable instead
+    #: (e.g. ``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``, ``OPENROUTER_API_KEY``).
     api_key: str = ""
     traits: list[str] = field(default_factory=list)
     system_prompt: str = ""
@@ -42,6 +46,10 @@ class PersonaConfig:
             f"**Provider:** {self.provider}  \n",
         ]
         if self.api_key:
+            lines.append(
+                "<!-- WARNING: API key stored in plaintext. "
+                "Do NOT commit this file to version control. -->"
+            )
             lines.append(f"**API Key:** {self.api_key}  \n")
         lines.append(f"## Description\n\n{self.description}\n")
         if self.traits:
